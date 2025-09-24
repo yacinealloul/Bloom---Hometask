@@ -1,103 +1,91 @@
-import Image from "next/image";
+"use client";
+
+import { motion } from "motion/react";
+import HeroWithPromptInput from "@/components/home/hero-input";
+import { useRouter } from "next/navigation";
+import InteractiveBackground from "@/components/background/interactive-background";
+import { useChatList } from "@/context/ChatListContext";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const router = useRouter();
+  const { addChatId } = useChatList();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+  const handleClick = (e: React.MouseEvent) => {
+    // Emit a ripple to the global interactive background
+    window.dispatchEvent(
+      new CustomEvent("bg:ripple", {
+        detail: { x: e.clientX, y: e.clientY },
+      }),
+    );
+  };
+
+  return (
+    <div className="relative h-screen w-full">
+      <InteractiveBackground />
+      {/* Hero Interface Overlay */}
+      <motion.div
+        className="relative z-10 h-screen"
+        initial={{ opacity: 0, y: 8, filter: "blur(6px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        onClick={handleClick}
+      >
+        <HeroWithPromptInput
+          onClick={handleClick}
+          onSubmit={async (message) => {
+            try {
+              const res = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message }),
+              });
+              const json = await res.json();
+              if (json?.chatId) {
+                addChatId(json.chatId);
+                setTimeout(() => {
+                  void (async () => {
+                    const payload = JSON.stringify({ chatId: json.chatId });
+                    router.push(`/chat/${json.chatId}`);
+
+                    // First, start the sandbox and wait for it to complete
+                    try {
+                      const response = await fetch("/api/runs/start", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: payload,
+                      });
+                      if (!response.ok) {
+                        console.error("Failed to start sandbox", await response.text());
+                        return; // Don't proceed to assistant if sandbox failed
+                      }
+                    } catch (err) {
+                      console.error("Run start request failed", err);
+                      return; // Don't proceed to assistant if sandbox failed
+                    }
+
+                    // Once sandbox is started, call the assistant
+                    try {
+                      const assistantResponse = await fetch("/api/assistant", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ chatId: json.chatId, message, alreadyLogged: true }),
+                      });
+                      if (!assistantResponse.ok) {
+                        console.error("Assistant request failed", await assistantResponse.text());
+                      }
+                    } catch (err) {
+                      console.error("Assistant request errored", err);
+                    }
+                  })();
+                }, 100);
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }}
+        />
+
+      </motion.div>
     </div>
   );
 }
