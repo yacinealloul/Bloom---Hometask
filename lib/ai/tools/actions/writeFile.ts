@@ -13,7 +13,7 @@ export async function writeFile(action: AgentAction, { sandbox, log }: ExecuteCo
         }
 
         const target = normalizePath(action.path);
-        let content: string | undefined =
+        const content: string | undefined =
             typeof action.content === "string" ? action.content : getDefaultFileContentForPath(action.path) ?? undefined;
 
         if (typeof content !== "string") {
